@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "name": "react-insight",
+  "version": "0.0.1",
+  "description": "Runtime React developer tool — explains why components re-render",
+  "scripts": {
+    "fixtures:capture": "node scripts/fixture-capture/capture-all.mjs",
+    "build": "pnpm --filter react-insight build",
+    "test": "pnpm --filter react-insight test",
+    "lint": "pnpm --filter react-insight lint"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

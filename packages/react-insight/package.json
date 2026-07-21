@@ -1,0 +1,49 @@
+{
+  "name": "react-insight",
+  "version": "0.1.0",
+  "description": "Runtime React developer tool — explains why components re-render",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/dev.d.ts",
+      "development": {
+        "import": "./dist/dev.js",
+        "require": "./dist/dev.cjs"
+      },
+      "default": {
+        "import": "./dist/production.js",
+        "require": "./dist/production.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/production.cjs",
+  "module": "./dist/production.js",
+  "types": "./dist/dev.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:gc-smoke": "node --expose-gc node_modules/.bin/vitest run tests/instanceTracker.gcSmoke.test.ts",
+    "lint": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "happy-dom": "^20.11.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

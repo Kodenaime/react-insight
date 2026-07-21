@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "name": "react-insight-fixture-capture",
+  "scripts": {
+    "fixtures:capture": "node scripts/fixture-capture/capture-all.mjs"
+  }
+}
