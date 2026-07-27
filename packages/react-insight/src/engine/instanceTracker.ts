@@ -39,6 +39,8 @@
 // ─────────────────────────────────────────────────────────────
 
 import type { FiberAdapter } from './FiberAdapter';
+import type { RenderReason } from './renderInspector';
+import type { EffectAnalysis, EffectAnalysisResult } from './effectAnalyzer';
 
 /**
  * Historical data stored per-component for diffing and analysis.
@@ -55,6 +57,12 @@ export interface ComponentHistory {
   lastProps?: unknown;
   /** Last known state snapshot (placeholder for the diff engine). */
   lastState?: unknown;
+  /** Reason for the most recent render. */
+  lastRenderReason?: RenderReason;
+  /** Whether the most recent render was wasted. */
+  lastRenderWasted?: boolean;
+  /** Latest effect analysis results. */
+  lastEffectAnalysis?: EffectAnalysis;
 }
 
 /**
@@ -181,7 +189,7 @@ function getTypeName(fiber: unknown, adapter: FiberAdapter): string {
   const type = adapter.getType(fiber);
   if (type === null || type === undefined) return 'HostRoot';
   if (typeof type === 'string') return type; // host element like "div"
-  if (typeof type === 'function') return type.displayName || type.name || '(anonymous)';
+  if (typeof type === 'function') return (type as { displayName?: string }).displayName || type.name || '(anonymous)';
   if (typeof type === 'object') {
     // Check for React-specific symbols
     const $$typeof = (type as any).$$typeof;

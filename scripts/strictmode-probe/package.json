@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "happy-dom": "^15.0.0"
+  }
+}

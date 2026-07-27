@@ -3,9 +3,10 @@
  *
  * Called from the DevTools hook shim's `onCommitFiberRoot` callback on every
  * committed render. Walks the committed Fiber tree, tracks component instances,
- * and feeds data into the diff/analysis engines (Phase 2+).
+ * classifies render reasons, analyzes effects, computes health scores, and
+ * feeds data into the analysis engines.
  *
- * ## Architecture
+ * ## Pipeline
  *
  * ```
  * onCommitFiberRoot(rendererID, root)
@@ -13,9 +14,21 @@
  *        ├─ Walk down the Fiber tree via FiberAdapter
  *        ├─ For each component fiber:
  *        │    ├─ trackInstance() → syntheticInstanceId
- *        │    └─ incrementRenderCount()
- *        └─ (Phase 2+: diff props/state, detect unstable refs, etc.)
+ *        │    ├─ classifyRender() → ComponentRenderResult
+ *        │    ├─ analyzeEffects() → EffectAnalysis
+ *        │    ├─ incrementRenderCount()
+ *        │    └─ Update ComponentHistory with render reason + effect analysis
+ *        ├─ computeHealthScore() → HealthScore (on demand via getHealthScore)
+ *        └─ (Phase 3+: ecosystem adapters, masking, etc.)
  * ```
+ *
+ * ## StrictMode (§2.2 of spec / FINDINGS.md)
+ *
+ * The probe (scripts/strictmode-probe/) confirmed that StrictMode does NOT
+ * produce duplicate onCommitFiberRoot calls. Render counts are accurate.
+ * No filter needed at the commit level. The STRICT_MODE_DOUBLE_INVOCATION
+ * filter is applied at the effect analysis layer, where the
+ * mount → cleanup → remount pattern IS observable.
  */
 
 import { probeAdapter, isComponentFiber, type FiberAdapter } from './FiberAdapter';
@@ -25,7 +38,19 @@ import {
   incrementRenderCount,
   _resetHistoryStore,
   getInstanceId,
+  _getHistory,
+  getAllHistories,
 } from './instanceTracker';
+import { analyzeComponentRender, _resetPrevSnapshots } from './renderInspector';
+import { analyzeEffects, _resetEffectStore } from './effectAnalyzer';
+import { computeHealthScore, type HealthScore, type HealthWeights } from './healthEngine';
+import { ZustandAdapter } from '../adapters/zustand';
+import { TanStackQueryAdapter } from '../adapters/tanstackQuery';
+import type { AdapterWarning } from '../adapters/types';
+
+// ── Active adapters ──────────────────────────────────────────
+
+const ADAPTERS = [ZustandAdapter, TanStackQueryAdapter];
 
 // ─────────────────────────────────────────────────────────────
 // Engine interface
@@ -34,6 +59,8 @@ import {
 export interface ReactInsightEngineAPI {
   analyzeCommit: (fiberRoot: unknown, rendererID: number) => void;
   handleUnmount: (fiber: unknown) => void;
+  getHealthScore: (weights?: HealthWeights) => HealthScore;
+  getAdapterWarnings: () => AdapterWarning[];
   /** @internal */
   _reset: () => void;
 }
@@ -42,16 +69,6 @@ export interface ReactInsightEngineAPI {
 // Adapter resolution (per-commit)
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Resolve the FiberAdapter for a given commit.
- *
- * The adapter is selected per-commit because a single page can theoretically
- * have multiple React roots with different versions (rare, but the spec's
- * version matrix says we should handle it).
- *
- * For now this returns the probeAdapter. Phase 1.3 will add version-specific
- * adapter resolution via feature detection.
- */
 function resolveAdapter(_fiberRoot: unknown): FiberAdapter {
   return probeAdapter;
 }
@@ -60,16 +77,6 @@ function resolveAdapter(_fiberRoot: unknown): FiberAdapter {
 // Tree walker
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Walk the committed Fiber tree starting from the given root (the HostRoot
- * fiber, i.e. `fiberRoot.current`).
- *
- * For each component fiber encountered:
- *   1. Compute/retrieve the synthetic instance ID.
- *   2. Initialize history if this is a new mount.
- *   3. Bump the render count.
- *   4. (Phase 2): diff previous vs current props/state.
- */
 function walkCommittedFiber(fiber: unknown, adapter: FiberAdapter): void {
   let cursor: unknown | null = fiber;
 
@@ -78,16 +85,29 @@ function walkCommittedFiber(fiber: unknown, adapter: FiberAdapter): void {
 
     if (isComponentFiber(tag)) {
       const instanceId = trackInstance(cursor, adapter);
+
+      // Classify the render reason
+      const renderResult = analyzeComponentRender(instanceId, cursor, adapter);
+
+      // Analyze effects
+      const effectAnalysis = analyzeEffects(cursor, adapter, instanceId);
+
+      // Update history
+      const history = _getHistory(instanceId);
+      if (history) {
+        history.lastRenderReason = renderResult.reason;
+        history.lastRenderWasted = renderResult.wasted;
+        history.lastEffectAnalysis = effectAnalysis;
+      }
+
       incrementRenderCount(instanceId);
     }
 
-    // Recurse into children depth-first
     const child = adapter.getChild(cursor);
     if (child) {
       walkCommittedFiber(child, adapter);
     }
 
-    // Move to sibling
     cursor = adapter.getSibling(cursor);
   }
 }
@@ -97,40 +117,31 @@ function walkCommittedFiber(fiber: unknown, adapter: FiberAdapter): void {
 // ─────────────────────────────────────────────────────────────
 
 export const ReactInsightEngine: ReactInsightEngineAPI = {
-  /**
-   * Analyze a committed render pass.
-   *
-   * Called from the hook shim's onCommitFiberRoot callback.
-   *
-   * @param fiberRoot - The `root.current` value from the DevTools hook callback
-   *   (the HostRoot fiber of the committed tree).
-   * @param rendererID - The React renderer ID from the hook callback.
-   */
   analyzeCommit(fiberRoot: unknown, _rendererID: number): void {
     if (!fiberRoot) return;
 
     const adapter = resolveAdapter(fiberRoot);
     const tag = adapter.getTag(fiberRoot);
 
-    // If the root itself is a component (unlikely but defensive), track it
     if (isComponentFiber(tag)) {
       const instanceId = trackInstance(fiberRoot, adapter);
+      const renderResult = analyzeComponentRender(instanceId, fiberRoot, adapter);
+      const effectAnalysis = analyzeEffects(fiberRoot, adapter, instanceId);
+      const history = _getHistory(instanceId);
+      if (history) {
+        history.lastRenderReason = renderResult.reason;
+        history.lastRenderWasted = renderResult.wasted;
+        history.lastEffectAnalysis = effectAnalysis;
+      }
       incrementRenderCount(instanceId);
     }
 
-    // Walk children
     const child = adapter.getChild(fiberRoot);
     if (child) {
       walkCommittedFiber(child, adapter);
     }
   },
 
-  /**
-   * Handle a component unmount notification.
-   *
-   * Called from the hook shim's onCommitFiberUnmount callback.
-   * Cleans up the history buffer deterministically and synchronously.
-   */
   handleUnmount(fiber: unknown): void {
     if (!fiber) return;
     const adapter = resolveAdapter(fiber);
@@ -141,8 +152,42 @@ export const ReactInsightEngine: ReactInsightEngineAPI = {
     }
   },
 
+  getHealthScore(weights?: HealthWeights): HealthScore {
+    const histories = getAllHistories();
+    return computeHealthScore(histories, weights);
+  },
+
+  getAdapterWarnings(): AdapterWarning[] {
+    const all: AdapterWarning[] = [];
+    for (const adapter of ADAPTERS) {
+      const getter = (adapter as any)._getWarnings;
+      if (typeof getter === 'function') {
+        all.push(...getter());
+      }
+    }
+    return all;
+  },
+
   /** @internal */
   _reset(): void {
     _resetHistoryStore();
+    _resetPrevSnapshots();
+    _resetEffectStore();
   },
 };
+
+// ── Adapter lifecycle ─────────────────────────────────────────
+
+/** @internal */
+export function _initAdapters(): void {
+  for (const adapter of ADAPTERS) {
+    try { adapter.attach(); } catch { /* per-adapter resilience */ }
+  }
+}
+
+/** @internal */
+export function _detachAdapters(): void {
+  for (const adapter of ADAPTERS) {
+    try { adapter.detach(); } catch { /* noop */ }
+  }
+}
