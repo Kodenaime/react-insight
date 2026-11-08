@@ -40,7 +40,10 @@ import {
   getInstanceId,
   _getHistory,
   getAllHistories,
+  type ComponentHistory,
 } from './instanceTracker';
+import { buildDiagnosticReport } from '../export/jsonExporter';
+import type { DiagnosticReportV1 } from '../export/schema';
 import { analyzeComponentRender, _resetPrevSnapshots } from './renderInspector';
 import { analyzeEffects, _resetEffectStore } from './effectAnalyzer';
 import { computeHealthScore, type HealthScore, type HealthWeights } from './healthEngine';
@@ -60,6 +63,9 @@ export interface ReactInsightEngineAPI {
   analyzeCommit: (fiberRoot: unknown, rendererID: number) => void;
   handleUnmount: (fiber: unknown) => void;
   getHealthScore: (weights?: HealthWeights) => HealthScore;
+  getSnapshot: () => { histories: ComponentHistory[]; healthScore: HealthScore };
+  buildReport: () => DiagnosticReportV1;
+  buildSnapshot: () => { report: DiagnosticReportV1; healthScore: HealthScore };
   getAdapterWarnings: () => AdapterWarning[];
   /** @internal */
   _reset: () => void;
@@ -98,6 +104,7 @@ function walkCommittedFiber(fiber: unknown, adapter: FiberAdapter): void {
         history.lastRenderReason = renderResult.reason;
         history.lastRenderWasted = renderResult.wasted;
         history.lastEffectAnalysis = effectAnalysis;
+        if (renderResult.wasted) history.wastedRenderCount++;
       }
 
       incrementRenderCount(instanceId);
@@ -132,6 +139,7 @@ export const ReactInsightEngine: ReactInsightEngineAPI = {
         history.lastRenderReason = renderResult.reason;
         history.lastRenderWasted = renderResult.wasted;
         history.lastEffectAnalysis = effectAnalysis;
+        if (renderResult.wasted) history.wastedRenderCount++;
       }
       incrementRenderCount(instanceId);
     }
@@ -155,6 +163,22 @@ export const ReactInsightEngine: ReactInsightEngineAPI = {
   getHealthScore(weights?: HealthWeights): HealthScore {
     const histories = getAllHistories();
     return computeHealthScore(histories, weights);
+  },
+
+  getSnapshot(): { histories: ComponentHistory[]; healthScore: HealthScore } {
+    const histories = getAllHistories();
+    return { histories, healthScore: computeHealthScore(histories) };
+  },
+
+  buildReport(): DiagnosticReportV1 {
+    const histories = getAllHistories();
+    return buildDiagnosticReport(histories, computeHealthScore(histories));
+  },
+
+  buildSnapshot(): { report: DiagnosticReportV1; healthScore: HealthScore } {
+    const histories = getAllHistories();
+    const healthScore = computeHealthScore(histories);
+    return { report: buildDiagnosticReport(histories, healthScore), healthScore };
   },
 
   getAdapterWarnings(): AdapterWarning[] {

@@ -14,6 +14,13 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       }
     },
   } satisfies HookCallbacks);
+
+  // Agentic bridge surface (Phase 7). Read by the browser-side MCP bridge
+  // client, which pushes the masked snapshot to the local MCP server.
+  (window as any).__REACT_INSIGHT__ = {
+    buildReport: () => ReactInsightEngine.buildReport(),
+    buildSnapshot: () => ReactInsightEngine.buildSnapshot(),
+  };
 }
 
 /**
@@ -59,3 +66,10 @@ export function ReactInsight({
 }
 
 export default ReactInsight;
+
+// ── Agentic export surface (Phase 7) ─────────────────────────
+// buildDiagnosticReport is browser-safe (no fs); sessionSync.ts is
+// Node-only and is intentionally NOT re-exported here.
+export { buildDiagnosticReport } from './export/jsonExporter';
+export { SCHEMA_VERSION } from './export/schema';
+export type { DiagnosticReportV1, ComponentDiagnostic, EffectFinding } from './export/schema';

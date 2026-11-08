@@ -114,7 +114,7 @@ function walkForContext(
     const props = fiberObj?.memoizedProps;
     const type = adapter.getType(fiber);
     const name = typeof type === 'function'
-      ? type.displayName || type.name || '(Context.Provider)'
+      ? (type as { displayName?: string }).displayName || type.name || '(Context.Provider)'
       : '(Context.Provider)';
 
     const providerKey = `${name}__${fiberObj?.key || 'no-key'}`;
@@ -163,7 +163,7 @@ function walkForContext(
       if (parentTag === PROVIDER_TAG) {
         const parentType = adapter.getType(cursor);
         const parentKey = `${typeof parentType === 'function'
-          ? parentType.displayName || parentType.name || '(Context.Provider)'
+          ? (parentType as { displayName?: string }).displayName || parentType.name || '(Context.Provider)'
           : '(Context.Provider)'}__${(cursor as any)?.key || 'no-key'}`;
 
         const record = providerRecords.get(parentKey);

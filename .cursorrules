@@ -1,0 +1,5 @@
+# React Insight — Cursor rules
+
+See `AGENTS.md` for the agent-facing interface (file-based `DiagnosticReportV1`
+report + `@react-insight/mcp` live tools). The root `package.json` `react-insight`
+field is the universal discovery path.

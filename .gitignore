@@ -1,6 +1,7 @@
 .commandcode/
 node_modules/
 dist/
+.react-insight/
 React_Insight_Technical_Specification_v1.1.md
 React_Insight_v1_1_Blueprint.md
 

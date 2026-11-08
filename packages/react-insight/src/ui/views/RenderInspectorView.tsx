@@ -211,7 +211,7 @@ export function RenderInspectorView({
           </div>
 
           {/* Prop diff details from render inspector (stored in lastProps) */}
-          {selected.lastProps && typeof selected.lastProps === 'object' && (
+          {typeof selected.lastProps === 'object' && selected.lastProps !== null && (
             <div style={{ marginTop: '8px' }}>
               <div style={{ color: '#888', fontSize: '10px', textTransform: 'uppercase', marginBottom: '4px' }}>
                 Props Snapshot

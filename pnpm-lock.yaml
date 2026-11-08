@@ -10,6 +10,9 @@ importers:
 
   examples/vite-react-18:
     dependencies:
+      '@react-insight/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -57,6 +60,25 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@22.20.1)
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.1)(happy-dom@20.11.0)
+
+  packages/mcp-server:
+    dependencies:
+      react-insight:
+        specifier: workspace:*
+        version: link:../react-insight
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      tsup:
+        specifier: ^8.0.0
+        version: 8.5.1(postcss@8.5.20)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(happy-dom@20.11.0)

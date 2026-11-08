@@ -51,6 +51,8 @@ export interface ComponentHistory {
   instanceId: string;
   /** Monotonic render count for this instance (since mount). */
   renderCount: number;
+  /** Cumulative count of wasted (unnecessary) renders since mount. */
+  wastedRenderCount: number;
   /** Metadata about the component. */
   componentName: string;
   /** Last known props snapshot (placeholder for the diff engine). */
@@ -250,6 +252,7 @@ export function trackInstance(fiber: unknown, adapter: FiberAdapter): string {
     historyStore.set(instanceId, {
       instanceId,
       renderCount: 0,
+      wastedRenderCount: 0,
       componentName: typeName,
     });
   }
