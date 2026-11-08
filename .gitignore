@@ -4,4 +4,11 @@ dist/
 .react-insight/
 React_Insight_Technical_Specification_v1.1.md
 React_Insight_v1_1_Blueprint.md
-
+React_Insight_v1.2_Blueprint.md
+AGENTS.md
+CLAUDE.md
+LAUNCH_CHECKLIST.md
+LIVE_TESTING.md
+twitter.md
+twitter_review.md
+packages/mcp-server/ARCHITECTURE.md
